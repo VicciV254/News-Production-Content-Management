@@ -1,184 +1,102 @@
 # Broadcast Media — News Production & Content Management
 
-Editorial CMS for broadcast media institutions. Replaces WhatsApp-based script sharing with a full workflow: **write → submit → edit review → approve → publish → archive**.
+A newsroom content management system for broadcast media: journalists write stories, editors review and publish them, and anyone can read the published feed. It is set up for local development only.
 
-## Tech Stack
+## Overview
 
-- **Backend:** Django 6.0, Django REST Framework, SQLite, bleach (HTML sanitization), django-background-tasks
-- **Frontend:** React 18, Vite, React Router, React Quill, jsPDF, jspdf-autotable, Lucide Icons, DOMPurify
+Journalists draft stories in a rich-text editor with a category, tags and a breaking-news flag, then submit them for review. Editors review submitted stories, approve them, request changes or reject them, and publish approved stories to a public feed that needs no sign-in. Admins manage user accounts, and editors and admins get a monthly analytics table per journalist with PDF downloads. The backend emails journalists when their stories are submitted, approved, sent back for changes or rejected, and reminds them before submission deadlines.
 
-## Prerequisites
+## Getting started
 
-- Python 3.11+
-- Node.js 18+
-- npm
+Prerequisites:
 
-## Quick Start
+- Python 3.12 or later (required by Django 6)
+- Node.js `^20.19.0`, `^22.13.0` or `>=24`, with npm (the `engines` ranges of Vite 8 and ESLint 10)
 
-### 1. Backend
+### Backend
 
 ```bash
-cd broadcast-media/backend
-
-# Create and activate virtual environment
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# macOS/Linux
-source venv/bin/activate
-
+cd backend
+python3 -m venv venv          # Windows: python -m venv venv
+source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py seed_data
 python manage.py runserver
 ```
 
-API runs at **http://127.0.0.1:8000**
+The API listens on `http://127.0.0.1:8000`. `seed_data` adds demo categories, broadcast slots, a deadline, stories and accounts.
 
-#### Background tasks (deadline reminder emails)
+### Frontend
 
-In a second terminal (with venv activated):
-
-```bash
-python manage.py process_tasks
-```
-
-This processes the recurring task that emails journalists 1 hour before submission deadlines.
-
-### 2. Frontend
+In a second terminal:
 
 ```bash
-cd broadcast-media/frontend
-npm install
+cd frontend
+npm ci
 npm run dev
 ```
 
-App runs at **http://localhost:5173** (proxies `/api` to Django).
+Open `http://localhost:5173`. The dev server forwards `/api` requests to the backend.
 
-## Demo Accounts
+### Demo accounts
 
-| Username     | Password     | Role       |
-|-------------|--------------|------------|
-| journalist1 | password123  | Journalist |
-| journalist2 | password123  | Journalist |
-| editor1     | password123  | Editor     |
-| admin       | password123  | Admin      |
+Sign in with one of the accounts `seed_data` creates. They share one password, which `seed_data` prints when it finishes.
 
-## API Endpoints
+| Username | Role |
+|---|---|
+| `journalist1`, `journalist2` | Journalist |
+| `editor1` | Editor |
+| `admin` | Admin |
 
-| Method | Endpoint | Access |
-|--------|----------|--------|
-| GET | `/api/v1/news/feed/` | Public |
-| GET | `/api/v1/news/feed/{slug}/` | Public |
-| GET | `/api/v1/news/categories/` | Public |
-| GET/POST | `/api/v1/news/stories/` | Authenticated |
-| GET/PATCH/DELETE | `/api/v1/news/stories/{id}/` | Owner or Editor |
-| POST | `/api/v1/news/stories/{id}/submit/` | Owner |
-| POST | `/api/v1/news/stories/{id}/review/` | Editor/Admin |
-| GET | `/api/v1/news/stories/{id}/history/` | Owner or Editor |
-| POST | `/api/v1/news/stories/{id}/publish/` | Editor/Admin |
-| POST | `/api/v1/news/stories/{id}/archive/` | Editor/Admin or Owner |
-| GET/POST | `/api/v1/news/deadlines/` | GET: all; POST: Admin |
-| GET | `/api/v1/news/reports/` | Editor/Admin |
-| POST | `/api/v1/auth/login/` | Public |
+### Deadline reminders
 
-## Application Pages
+Reminder emails need the task worker. Run it in a third terminal:
 
-| Page | Route | Role | Description |
-|------|-------|------|-------------|
-| Landing Page | `/` | Everyone | Public news feed with story cards, search, category filters, and date range filters |
-| Story Detail | `/feed/:slug` | Everyone | Full story view with back to feed option |
-| My Stories | `/stories` | Journalist | View all stories with status tabs (draft, submitted, under review, changes requested, approved, published, rejected, archived), delete drafts/archived stories |
-| Story Editor | `/stories/:id/edit` | Journalist | Create/edit stories with rich text editor, tags, category, breaking news toggle, auto-save |
-| Editorial Review | `/review` | Editor/Admin | Review submitted stories with status tabs (all, submitted, under review, approved, changes requested, rejected, published), approve/request changes/reject/publish/unpublish/delete |
-| Analytics | `/analytics` | Editor/Admin | Table-based analytics showing journalist stories with category and tags, filtering by journalist/category/tag, PDF report downloads |
-| Admin Dashboard | `/admin` | Admin | Manage users (view by role, add/remove accounts, manage permissions) |
-| User Profile | `/profile` | Authenticated | Update user details and change password |
-| Login | `/login` | Everyone | Login with option to create new account with role selection |
+```bash
+cd backend
+source venv/bin/activate      # Windows: venv\Scripts\activate
+python manage.py process_tasks
+```
 
-## Workflow
+All emails are printed to the terminal of the process that sends them instead of being delivered. See [Notifications](docs/workflow.md#notifications).
 
-1. **Journalist** creates a draft in the Story Editor (rich text, tags, category, breaking toggle, auto-save every 60s)
-2. **Submit for Review** → status becomes `submitted`, confirmation email sent
-3. **Editor** reviews in Editorial Review:
-   - Put story under review (moves to "under review" tab)
-   - From under review: Approve, Request Changes (with comment), or Reject
-   - Stop reviewing option available (unless approved/rejected)
-4. **Approved** stories can be **Published** to the public feed by editors or by the journalist who owns the story
-5. Published stories can be **Unpublished** (moves back to review with feedback) or **Deleted**
-6. Stories can be **Archived** for long-term storage
-7. Journalists can delete their own **drafts** and **archived** stories
+## Verification
 
-## Key Features
+No automated tests are defined. These commands check each part:
 
-### Editorial Review System
-- **Multi-tab filtering**: All, Submitted, Under Review, Approved, Changes Requested, Rejected, Published
-- **Notification badges**: Dynamic unread counts per status tab, visible across all tabs
-- **Story workflow**: Submit → Under Review → Approve/Request Changes/Reject → Publish
-- **Unpublish with feedback**: Editors can unpublish published stories with feedback, moving them back to review
-- **Delete published stories**: Editors can delete published stories from the Published tab
+| Run in | Command | Passes when |
+|---|---|---|
+| `backend/`, venv active | `python manage.py check` | Django prints `System check identified no issues` |
+| any | `curl http://127.0.0.1:8000/api/v1/news/feed/` | the running API returns a JSON page of published stories |
+| `frontend/` | `npm run lint` | ESLint reports no errors |
+| `frontend/` | `npm run build` | Vite writes the build to `frontend/dist/` |
 
-### Journalist Features
-- **My Stories dashboard**: View all stories organized by status tabs
-- **Delete drafts/archived**: Journalists can delete their own drafts and archived stories
-- **Publish approved stories**: Journalists can publish their own approved stories
-- **Notification system**: High opacity for unread stories in each status tab, updates when story status changes
+## Tech stack
 
-### Analytics Dashboard
-- **Table-based view**: Replaced visual graphs with interactive tables
-- **Journalist filtering**: View stories by individual journalist with detailed breakdown
-- **Category and tag filtering**: Filter analytics by category or tag
-- **PDF reports**: Download PDF reports for individual journalists or all journalists at once
-- **Dynamic data**: Shows all journalists even if they have zero published stories
+- Backend: Django 6, Django REST Framework (token authentication), django-cors-headers, bleach, django-background-tasks, SQLite
+- Frontend: React 18, Vite 8, React Router 7, Axios, React Quill, DOMPurify, jsPDF with jspdf-autotable, date-fns, Lucide icons
 
-### News Feed
-- **Public access**: Anyone can view published stories without login
-- **Search functionality**: Search stories by title/content
-- **Category filtering**: Filter stories by category
-- **Date range filtering**: From and to date filters (default: from 01/06/2026 to current date)
-- **Responsive design**: Mobile-friendly story cards
+## Project structure
 
-### User Management
-- **Role-based access**: Journalist, Editor, Admin roles with different permissions
-- **Account creation**: New users can register with role selection (journalist/editor)
-- **Profile management**: Users can update their details and change passwords
-- **Admin dashboard**: Admins can view all users by role, add/remove accounts, manage permissions
+```text
+backend/
+├── config/            # settings and root URLs
+├── accounts/          # user model with roles; sign-in, registration and user API
+└── news/              # stories, reviews, categories, deadlines, feed and reports API
+    ├── management/commands/seed_data.py  # demo data
+    ├── signals.py     # status updates and notification emails
+    └── tasks.py       # deadline reminder task
+frontend/
+├── src/
+│   ├── api/client.js  # API client
+│   ├── pages/         # route components
+│   └── components/    # shared UI
+└── vite.config.js     # dev server port and /api proxy
+docs/                  # workflow and API reference
+```
 
-### Story Editor
-- **Rich text editing**: React Quill editor with formatting options
-- **Auto-save**: Automatic draft saving every 60 seconds
-- **Tags and categories**: Assign multiple tags and a category to each story
-- **Breaking news toggle**: Mark stories as breaking news
-- **Story history**: View edit history for stories
+## Docs
 
-## Notification System
-
-### Editorial Review Notifications
-- **Badge counts**: Each status tab shows number of unread stories
-- **Cross-tab visibility**: Notification badges visible even when not in the specific tab
-- **Dynamic updates**: Counts update when stories are viewed
-- **Status change alerts**: Stories regain high opacity when moving to a new status tab, even if previously viewed
-
-### Journalist Notifications
-- **Status updates**: Journalists see notification badges in My Stories for each status tab
-- **Unread indicators**: High opacity for unread stories in each tab
-- **Real-time updates**: Notifications update as stories move through the workflow
-
-## Email Notifications
-
-Emails print to the console in development (`EMAIL_BACKEND = console`). Notifications sent for:
-
-- Story submitted
-- Changes requested (includes reviewer comment)
-- Story approved
-- Deadline reminder (1 hour before, via background task)
-
-## Production Notes
-
-- Change `SECRET_KEY` and set `DEBUG = False`
-- Use PostgreSQL instead of SQLite
-- Configure real SMTP in `settings.py`
-- Run `process_tasks` via cron or a process manager
-- Build frontend: `npm run build` and serve static files or deploy separately
+- [Editorial workflow](docs/workflow.md): roles, story statuses, pages and notifications
+- [API reference](docs/api.md): authentication, endpoints, filters and story actions
